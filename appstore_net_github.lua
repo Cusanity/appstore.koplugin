@@ -2,6 +2,7 @@
 local Net = require("appstore_net")
 local url = require("socket.url")
 local logger = require("logger")
+local AppStoreSettings = require("appstore_settings")
 
 local ok_cfg, AppStoreConfig = pcall(require, "appstore_configuration")
 if not ok_cfg then
@@ -13,6 +14,12 @@ local GitHubClient = {}
 local BASE_URL = "https://api.github.com"
 local USER_AGENT = "KOReader-AppStore"
 
+-- A token entered in the settings dialog is stored here and always takes
+-- precedence over appstore_configuration.lua, so pasting a PAT into the UI
+-- works without ever touching the config file. Leaving the field empty (or
+-- never setting it) falls back to the file, so existing configs keep working.
+local SETTING_TOKEN_KEY = "github_pat_token"
+
 local function joinQueryParts(parts)
     if not parts or #parts == 0 then
         return ""
@@ -20,19 +27,57 @@ local function joinQueryParts(parts)
     return table.concat(parts, " ")
 end
 
-local function getAuthHeaders()
+local function isUsableToken(token)
+    return token ~= nil and token ~= "" and token ~= "your_github_token"
+end
+
+--- Returns (token, source), where source is "ui" or "file", or (nil, nil)
+--- when neither the settings store nor appstore_configuration.lua has one.
+local function getActiveToken()
+    local ui_token = AppStoreSettings:readSetting(SETTING_TOKEN_KEY)
+    if isUsableToken(ui_token) then
+        return ui_token, "ui"
+    end
     local auth = AppStoreConfig.auth and AppStoreConfig.auth.github
-    if not auth then
+    local file_token = auth and auth.token
+    if isUsableToken(file_token) then
+        return file_token, "file"
+    end
+    return nil, nil
+end
+
+local function getAuthHeaders()
+    local token = getActiveToken()
+    if not token then
         return nil
     end
-    local token = auth.token
-    if not token or token == "" or token == "your_github_token" then
-        return nil
-    end
-    local scheme = auth.scheme or "token"
+    local auth = AppStoreConfig.auth and AppStoreConfig.auth.github
+    local scheme = (auth and auth.scheme) or "token"
     return {
         ["Authorization"] = string.format("%s %s", scheme, token),
     }
+end
+
+--- Reads the raw token stored via the settings dialog (nil/"" when unset).
+function GitHubClient.getUIToken()
+    return AppStoreSettings:readSetting(SETTING_TOKEN_KEY)
+end
+
+--- Returns "ui", "file", or nil, describing which source (if any) is
+--- currently supplying the GitHub auth token.
+function GitHubClient.getTokenSource()
+    local _, source = getActiveToken()
+    return source
+end
+
+--- Saves (token ~= "") or clears (token == nil/"") the UI-entered token.
+function GitHubClient.setUIToken(token)
+    if token and token ~= "" then
+        AppStoreSettings:saveSetting(SETTING_TOKEN_KEY, token)
+    else
+        AppStoreSettings:delSetting(SETTING_TOKEN_KEY)
+    end
+    AppStoreSettings:flush()
 end
 
 local function request(path, query)
@@ -129,15 +174,7 @@ function GitHubClient.searchRepositories(opts)
 end
 
 function GitHubClient.hasAuthToken()
-    local auth = AppStoreConfig.auth and AppStoreConfig.auth.github
-    if not auth then
-        return false
-    end
-    local token = auth.token
-    if not token or token == "" or token =="your_github_token" then
-        return false
-    end
-    return true
+    return getActiveToken() ~= nil
 end
 
 function GitHubClient.searchByTopics(topics, opts)

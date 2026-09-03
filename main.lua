@@ -8337,6 +8337,17 @@ function AppStore:showAppStoreSettingsDialog()
         },
     })
 
+    table.insert(buttons, {
+        {
+            text = string.format(_("GitHub token: %s"), self:getGitHubTokenSummary()),
+            background = Blitbuffer.COLOR_WHITE,
+            callback = function()
+                UIManager:close(dialog)
+                self:showGitHubTokenDialog()
+            end,
+        },
+    })
+
     if current_kind == "plugin" then
         table.insert(buttons, {
             {
@@ -8545,6 +8556,92 @@ function AppStore:promptCustomDownloadMirror(on_close_cb)
                 },
             },
         },
+    }
+    UIManager:show(dialog)
+    dialog:onShowKeyboard()
+end
+
+--- Short label for the "GitHub token: %s" settings row, naming which source
+--- (if any) currently supplies the auth token.
+function AppStore:getGitHubTokenSummary()
+    local source = GitHub.getTokenSource()
+    if source == "ui" then
+        return _("configured")
+    elseif source == "file" then
+        return _("configured via configuration.lua")
+    end
+    return _("not configured")
+end
+
+function AppStore:showGitHubTokenDialog(on_close_cb)
+    local return_cb = on_close_cb or function()
+        self:showAppStoreSettingsDialog()
+    end
+    local ui_token = GitHub.getUIToken()
+    local has_ui_token = ui_token ~= nil and ui_token ~= ""
+    local dialog
+
+    local buttons = {
+        {
+            {
+                text = _("Cancel"),
+                id = "close", -- InputDialog:onCloseDialog looks this up for the Back key
+                callback = function()
+                    UIManager:close(dialog)
+                    return_cb()
+                end,
+            },
+            {
+                text = _("Save"),
+                is_enter_default = true,
+                callback = function()
+                    local token = dialog:getInputText():match("^%s*(.-)%s*$")
+                    if token == "" then
+                        UIManager:show(InfoMessage:new{
+                            text = _("Enter a token, or use \"Clear saved token\" to remove the one already set."),
+                            timeout = 4,
+                        })
+                        return
+                    end
+                    UIManager:close(dialog)
+                    GitHub.setUIToken(token)
+                    UIManager:show(InfoMessage:new{
+                        text = _("GitHub token saved."),
+                        timeout = 3,
+                    })
+                    return_cb()
+                end,
+            },
+        },
+    }
+    if has_ui_token then
+        table.insert(buttons, {
+            {
+                text = _("Clear saved token"),
+                background = Blitbuffer.COLOR_WHITE,
+                callback = function()
+                    UIManager:close(dialog)
+                    GitHub.setUIToken(nil)
+                    UIManager:show(InfoMessage:new{
+                        text = _("GitHub token cleared. Falling back to appstore_configuration.lua, if set."),
+                        timeout = 4,
+                    })
+                    return_cb()
+                end,
+            },
+        })
+    end
+
+    -- The current token (from either source) is never shown back: pasting a
+    -- new value here always wins over appstore_configuration.lua.
+    dialog = InputDialog:new{
+        title = _("GitHub personal access token"),
+        description = _("Paste a classic PAT (public_repo scope) to raise API limits. This overrides "
+            .. "appstore_configuration.lua while set; use \"Clear saved token\" to fall back to the "
+            .. "config file again."),
+        input = "",
+        input_hint = "ghp_...",
+        buttons = buttons,
     }
     UIManager:show(dialog)
     dialog:onShowKeyboard()

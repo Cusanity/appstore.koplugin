@@ -1,6 +1,9 @@
 ﻿-- User-editable configuration for AppStore plugin.
 -- Fill in your personal access tokens (PAT) here to raise API limits.
 -- Example for GitHub: generate a PAT with "public_repo" scope and paste it below.
+-- A token can also be pasted directly into AppStore settings (gear icon ->
+-- GitHub token) instead of editing this file; the UI value always takes
+-- precedence over the one below, so leave this unset if you use the UI.
 return {
     auth = {
         github = {

@@ -55,7 +55,10 @@ also skipped when picking where to install a brand-new plugin.
 
 ## Configuration (GitHub PAT)
 
-If you routinely browse many repositories or hit rate-limit warnings, supply a PAT in `plugins/appstore.koplugin/appstore_configuration.lua`:
+If you routinely browse many repositories or hit rate-limit warnings, supply a PAT one of two ways:
+
+- **In the UI (no restart needed):** gear icon (⚙️) → **GitHub token** → paste the token → **Save**. This is stored on-device and always takes precedence over the config file below, so most people never need to touch a file at all. Use **Clear saved token** to remove it and fall back to `appstore_configuration.lua`, if set.
+- **In `plugins/appstore.koplugin/appstore_configuration.lua`** (handy for scripted installs or syncing the same token across devices):
 
 ```lua
 return {
@@ -76,7 +79,7 @@ return {
 2. Click **Generate new token (classic)**.
 3. Name the token (e.g., `KOReader AppStore`), set an expiration, and grant at least the **`public_repo`** scope.
 4. Generate and copy the token immediately—GitHub will not show it again.
-5. Paste it into `appstore_configuration.lua` (You can create that file from `appstore_configuration.sample.lua`) and restart KOReader.
+5. Paste it into the **GitHub token** setting (gear icon ⚙️) — or into `appstore_configuration.lua` (create that file from `appstore_configuration.sample.lua`) and restart KOReader.
 
 The plugin automatically includes the token in GitHub API requests, raising your quota to the standard authenticated limits.
 
